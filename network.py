@@ -9,9 +9,9 @@ from abc import abstractmethod
 
 ## Cost functions, other than square.
 ## Different activations for different layers. Sigmoid, tanh, linear, ReLU, softmax, softsign.
-# L2 regularization.
-# L1 regularization.
-# Learning rate (eta) changing over time/conditions.
+## L1 regularization.
+## L2 regularization.
+## Learning rate (eta) changing over time/conditions.
 # Layer replaceability.
 # Autoencoder.
 # Analize gradients during training.
@@ -128,6 +128,11 @@ class Network:
         #self.biases = [np.array([1, 2, 3]), np.array([4])]
         #self.weights = [np.array([[1, 2], [3, 4], [5, 6]]), np.array([[7, 8, 9]])]
 
+        self.l1R = 0.0
+        self.l2R = 0.0
+        self.nIEL = 0
+        self.lRDL = 0.0
+
     def feedforward(self, a):
         for w, b, af in zip(self.weights, self.biases, self.activations):
             #originalA = a
@@ -139,11 +144,16 @@ class Network:
     def sgd(self, trainingData, maxEpochs, batchSize, eta, testData = None, evalByMaxElement = False, evalByTrainingData = False):
         if testData: numberOfTests = len(testData)
         numberOfTrainingData = len(trainingData)
+
+        lRCD = 1.0
+        lastImprovementEpoch = 0
+        lastBestEvaluation = 0
+
         for i in range(maxEpochs):
             random.shuffle(trainingData)
             batches = [trainingData[j:j + batchSize] for j in range(0, numberOfTrainingData, batchSize)]
             for batch in batches:
-                self.updateBatch(batch, eta)
+                self.updateBatch(batch, eta * lRCD)
 
             if evalByTrainingData:
                 evaluationResult = self.evaluate(trainingData, evalByMaxElement)
@@ -156,6 +166,18 @@ class Network:
             if testData:
                 evaluationResult = self.evaluate(testData, evalByMaxElement)
                 if evalByMaxElement:
+                    if self.nIEL > 0:
+                        if evaluationResult[0] > lastBestEvaluation:
+                            lastBestEvaluation = evaluationResult[0]
+                            lastImprovementEpoch = i
+                        elif i - lastImprovementEpoch > self.nIEL:
+                            lastImprovementEpoch = i
+                            if lRCD > self.lRDL:
+                                lRCD *= 0.5
+                                print('Decrease learning rate')
+                            else:
+                                print('Learning rate is minimized already.')
+
                     print(f"Epoch {i} test: {evaluationResult[0]} / {numberOfTests} {evaluationResult[0] / numberOfTests}")
                 else:
                     print(f"Epoch {i} test: {evaluationResult[0]} in {numberOfTests} tests.")
@@ -175,7 +197,8 @@ class Network:
             sumOfDeltasForWeights = [dW + dWBatch for dW, dWBatch in zip(sumOfDeltasForWeights, deltaWeights)]
             sumOfDeltasForBiases = [dB + dBBatch for dB, dBBatch in zip(sumOfDeltasForBiases, deltaBiases)]
 
-        self.weights = [w - eta * dW / batchSize for w, dW in zip(self.weights, sumOfDeltasForWeights)]
+        # Didn't add L1 regularization fine tuning, like checking for resulting change not pushing over zero - only to it.
+        self.weights = [w - eta * (dW / batchSize + self.l2R * w + self.l1R * np.sign(w)) for w, dW in zip(self.weights, sumOfDeltasForWeights)]
         self.biases = [b - eta * dB / batchSize for b, dB in zip(self.biases, sumOfDeltasForBiases)]
 
     def backpropagation(self, input, result):
@@ -229,7 +252,22 @@ class Network:
         else:
             successes = diffBelow05
 
-        return (successes, costSum / testDataLen)
+        cost = costSum / testDataLen
+
+        if self.l1R > 0 or self.l2R > 0:
+            # All arrays in weights are of different dimensions, thus simple ways dont work.
+            weights = []
+            for nparr in self.weights:
+                weights.extend(nparr.reshape(-1).tolist())
+            weights = np.array(weights)
+
+        if self.l1R > 0:
+            cost += self.l1R * np.sum(abs(weights))
+
+        if self.l2R > 0:
+            cost += self.l2R * np.sum(weights ** 2) * 0.5
+
+        return (successes, cost)
 
 def loadMNIST(fileName):
     with open(fileName, "rb") as file:
@@ -322,8 +360,14 @@ trainData = list(zip(splitedTrainImages, trainLabelsVectorized))
 testData = list(zip(splitedTestImages, testLabelsVectorized))
 
 mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
-maxEpochs = 10
+maxEpochs = 30
 batchSize = 10
 eta = 0.5
+
+mnistNetwork.l1R = 0.00005
+mnistNetwork.l2R = 0.00001
+mnistNetwork.nIEL = 1
+mnistNetwork.lRDL = 0.03125
+
 mnistNetwork.sgd(trainData, maxEpochs, batchSize, eta, testData, evalByMaxElement = True, evalByTrainingData = True)
 
