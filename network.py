@@ -4,6 +4,8 @@ import random
 from typing import Protocol
 from abc import abstractmethod
 
+import matplotlib.pyplot as plt
+
 #import warnings
 #warnings.filterwarnings("error")
 
@@ -12,9 +14,9 @@ from abc import abstractmethod
 ## L1 regularization.
 ## L2 regularization.
 ## Learning rate (eta) changing over time/conditions.
-# Layer replaceability.
-# Autoencoder.
-# Analize gradients during training.
+## Layer replaceability and individual training.
+## Autoencoder.
+## Analize gradients during training (per layer).
 
 class Cost(Protocol):
     @abstractmethod
@@ -116,6 +118,11 @@ class ActivationSoftsign:
     def derivative(z):
         return 1 / ((1 + abs(z)) ** 2)
 
+def weightsInit(neurons, weightsPerNeuron):
+    return np.random.normal(scale = 1 / (weightsPerNeuron ** 0.5), size = (neurons, weightsPerNeuron))
+
+def biasesInit(neurons):
+    return np.random.normal(size = (neurons, 1))
 
 class Network:
     def __init__(self, sizes, activations, cost):
@@ -123,23 +130,52 @@ class Network:
         self.sizes = sizes
         self.activations = activations
         self.cost = cost
-        self.biases = [np.random.normal(size = (y, 1)) for y in sizes[1:]]
-        self.weights = [np.random.normal(scale = 1 / (x ** 0.5), size = (y, x)) for x, y in zip(sizes[:-1], sizes[1:])]
-        #self.biases = [np.array([1, 2, 3]), np.array([4])]
-        #self.weights = [np.array([[1, 2], [3, 4], [5, 6]]), np.array([[7, 8, 9]])]
+        self.biases = [biasesInit(y) for y in sizes[1:]]
+        self.weights = [weightsInit(y, x) for x, y in zip(sizes[:-1], sizes[1:])]
 
+        self.trainability = [True] * (self.numberOfLayers - 1)
         self.l1R = 0.0
         self.l2R = 0.0
         self.nIEL = 0
         self.lRDL = 0.0
 
+        self.gradientsAnalysis = False
+        self.l1RLayerDependent = False
+
     def feedforward(self, a):
         for w, b, af in zip(self.weights, self.biases, self.activations):
-            #originalA = a
-            #a = np.dot(w, a) + b
             a = af.activation(np.dot(w, a) + b)
-            #print(f"input is {originalA}\nw is {w}\nb is {b}\na is {a}")
         return a
+
+    def showGradientsStatistics(self, gradientsPerEpochs, weightsPerEpochs):
+        epochs = range(len(gradientsPerEpochs))
+        for i in range(self.numberOfLayers - 1):
+            meanGradientAbs = [np.mean(abs(layers[i])) for layers in gradientsPerEpochs]
+            plt.subplot(2, 1, 1)
+            plt.plot(epochs, meanGradientAbs, label = f'{i}')
+
+            plt.annotate(f'{meanGradientAbs[0]:.7f}',
+            (0, meanGradientAbs[0]))
+            plt.annotate(f'{meanGradientAbs[-1]:.7f}',
+            (len(epochs) - 1, meanGradientAbs[-1]))
+
+            meanWeightsAbs = [np.mean(abs(layers[i])) for layers in weightsPerEpochs]
+            plt.subplot(2, 1, 2)
+            plt.plot(epochs, meanWeightsAbs, label = f'{i}')
+
+            plt.annotate(f'{meanWeightsAbs[0]:.7f}',
+            (0, meanWeightsAbs[0]))
+            plt.annotate(f'{meanWeightsAbs[-1]:.7f}',
+            (len(epochs) - 1, meanWeightsAbs[-1]))
+
+        plt.subplot(2, 1, 1)
+        plt.title('Gradients')
+        plt.legend()
+        plt.subplot(2, 1, 2)
+        plt.title('Weights')
+        plt.legend()
+
+        plt.show()
 
     def sgd(self, trainingData, maxEpochs, batchSize, eta, testData = None, evalByMaxElement = False, evalByTrainingData = False):
         if testData: numberOfTests = len(testData)
@@ -149,18 +185,28 @@ class Network:
         lastImprovementEpoch = 0
         lastBestEvaluation = 0
 
+        gradientsPerEpochs = []
+        weightsPerEpochs = []
+
         for i in range(maxEpochs):
             random.shuffle(trainingData)
             batches = [trainingData[j:j + batchSize] for j in range(0, numberOfTrainingData, batchSize)]
+
+            gradients = [np.zeros(w.shape) for w in self.weights]
+
+            if self.gradientsAnalysis:
+                weightsPerEpochs.append(self.weights.copy())
+
             for batch in batches:
-                self.updateBatch(batch, eta * lRCD)
+                self.updateBatch(batch, eta * lRCD, gradients)
+
+            if self.gradientsAnalysis:
+                gradientsPerEpochs.append([gradientsSumsByLayer / len(batches) for gradientsSumsByLayer in gradients])
 
             if evalByTrainingData:
                 evaluationResult = self.evaluate(trainingData, evalByMaxElement)
                 if evalByMaxElement:
                     print(f"Epoch {i} training: {evaluationResult[0]} / {numberOfTrainingData} {evaluationResult[0] / numberOfTrainingData}")
-                else:
-                    print(f"Epoch {i} training: {evaluationResult[0]} in {numberOfTrainingData} tests.")
                 print(f"Epoch {i} cost function by training data: {evaluationResult[1]:.10f}")
  
             if testData:
@@ -172,6 +218,8 @@ class Network:
                             lastImprovementEpoch = i
                         elif i - lastImprovementEpoch > self.nIEL:
                             lastImprovementEpoch = i
+                            # Prevent constant lR decrease, caused by early accident spike in results.
+                            lastBestEvaluation = evaluationResult[0]
                             if lRCD > self.lRDL:
                                 lRCD *= 0.5
                                 print('Decrease learning rate')
@@ -179,15 +227,16 @@ class Network:
                                 print('Learning rate is minimized already.')
 
                     print(f"Epoch {i} test: {evaluationResult[0]} / {numberOfTests} {evaluationResult[0] / numberOfTests}")
-                else:
-                    print(f"Epoch {i} test: {evaluationResult[0]} in {numberOfTests} tests.")
                 print(f"Epoch {i} cost function by test data: {evaluationResult[1]:.10f}")
             else:
                 print(f"Epoch {i} completed.")
 
             print('')
 
-    def updateBatch(self, batch, eta):
+        if self.gradientsAnalysis:
+            self.showGradientsStatistics(gradientsPerEpochs, weightsPerEpochs)
+
+    def updateBatch(self, batch, eta, gradients):
         sumOfDeltasForWeights = [np.zeros(w.shape) for w in self.weights]
         sumOfDeltasForBiases = [np.zeros(b.shape) for b in self.biases]
         batchSize = len(batch)
@@ -198,8 +247,24 @@ class Network:
             sumOfDeltasForBiases = [dB + dBBatch for dB, dBBatch in zip(sumOfDeltasForBiases, deltaBiases)]
 
         # Didn't add L1 regularization fine tuning, like checking for resulting change not pushing over zero - only to it.
-        self.weights = [w - eta * (dW / batchSize + self.l2R * w + self.l1R * np.sign(w)) for w, dW in zip(self.weights, sumOfDeltasForWeights)]
-        self.biases = [b - eta * dB / batchSize for b, dB in zip(self.biases, sumOfDeltasForBiases)]
+        #self.weights = [w - eta * (dW / batchSize + self.l2R * w + self.l1R * np.sign(w)) for w, dW in zip(self.weights, sumOfDeltasForWeights)]
+        #self.biases = [b - eta * dB / batchSize for b, dB in zip(self.biases, sumOfDeltasForBiases)]
+
+        for trainability, w, dW, b, dB, index in zip(self.trainability, self.weights, sumOfDeltasForWeights, self.biases, sumOfDeltasForBiases, range(self.numberOfLayers - 1)):
+            if trainability:
+                l1R = self.l1R
+                if self.l1RLayerDependent:
+                    # Coefficients are results of testing, to make L1 to gradient ratio relatively same between layers.
+                    lastIndex = self.numberOfLayers - 2
+                    if index < lastIndex:
+                        if index == 0:
+                            l1R *= 0.2
+                        else:
+                            l1R *= 0.5# * (0.4 + 0.6 * index / (lastIndex - 1))# Will be there only if lastIndex > 1.
+                if self.gradientsAnalysis:
+                    gradients[index] = gradients[index] + dW / batchSize
+                self.weights[index] = w - eta * (dW / batchSize + self.l2R * w + l1R * np.sign(w))
+                self.biases[index] = b - eta * dB / batchSize
 
     def backpropagation(self, input, result):
         deltaW = [np.zeros(w.shape) for w in self.weights]
@@ -219,11 +284,13 @@ class Network:
         deltaB[-1] = delta
 
         for i in range(2, self.numberOfLayers):
-            z = zVectorsByLayer[-i]
-            aD = self.activations[-i].derivative(z)
-            delta = np.dot(self.weights[-i+1].transpose(), delta) * aD
-            deltaW[-i] = np.dot(delta, activations[-i-1].transpose())
-            deltaB[-i] = delta
+            # Trainability will be used only for blocking first layers from training, thefore backprop can be stoped for better performance.
+            if self.trainability[-i]:
+                z = zVectorsByLayer[-i]
+                aD = self.activations[-i].derivative(z)
+                delta = np.dot(self.weights[-i+1].transpose(), delta) * aD
+                deltaW[-i] = np.dot(delta, activations[-i-1].transpose())
+                deltaB[-i] = delta
 
         return (deltaW, deltaB)
 
@@ -233,24 +300,13 @@ class Network:
         costSum = 0
         diffBelow05 = []
         for i, (real, desired) in enumerate(tests):
-            #netResult = self.feedforward(testData[i][0])
-            #squareDiff = np.mean(np.square(testData[i][1] - netResult))
             costSum += self.cost.cost(real, desired)
-            #print(f"Sample {i}: {testData[i][0]} result {real} expected {desired}")
-
-            # Maybe remove it at all, leaving only cost function for not max?
-            if not evalByMaxElement:
-                diff = desired - real
-                absDiff = abs(diff.reshape(-1))
-                diffBelow05.append((sum((x < 0.5) for x in absDiff), len(real)))
 
         if evalByMaxElement:
-            #testResults = [(np.argmax(real), np.argmax(desired)) for real, desired in tests]
             testResults = [(np.argmax(real), np.argmax(desired)) for real, desired in tests]
             successes = sum(int(x == y) for x, y in testResults)
-            ##print(testResults)
         else:
-            successes = diffBelow05
+            successes = []
 
         cost = costSum / testDataLen
 
@@ -269,12 +325,69 @@ class Network:
 
         return (successes, cost)
 
+    def addHiddenLayer(self, size, activationFunction):
+        self.numberOfLayers += 1
+        self.sizes.insert(-1, size)
+        self.trainability.insert(-1, True)
+        self.activations.insert(-1, activationFunction)
+        # Added hidden layer can have other size, then previous last hidden, thus last layer weights must be replaced.
+        self.weights.pop()
+        self.biases.pop()
+
+        self.biases.append(biasesInit(self.sizes[-2]))
+        self.weights.append(weightsInit(self.sizes[-2], self.sizes[-3]))
+
+        self.biases.append(biasesInit(self.sizes[-1]))
+        self.weights.append(weightsInit(self.sizes[-1], self.sizes[-2]))
+
+    def autoencoderPretrain(self, trainingData, maxEpochs, batchSize, eta):
+        lastLayerWeights = self.weights.pop()
+        lastLayerBiases = self.biases.pop()
+        self.biases.append(biasesInit(self.sizes[0]))
+        self.weights.append(weightsInit(self.sizes[0], self.sizes[-2]))
+
+        originalCost = self.cost
+        self.cost = CostSquare()
+        originalLastActivation = self.activations.pop()
+        self.activations.append(ActivationLinear())
+
+        print('Start pretraining.\n')
+        self.sgd(trainingData, maxEpochs, batchSize, eta, evalByTrainingData = True)
+
+        # Draw results of autoencoder for comparison.
+        #imagesCount = 10
+        #for imageIndex in range(imagesCount):
+        #    image = trainingData[imageIndex]
+        #    imageArray = image[0].reshape(28, 28)
+
+        #    plt.subplot(imagesCount, 2, imageIndex * 2 + 1)
+        #    plt.imshow(imageArray, cmap='gray')
+        #    imageArray = self.feedforward(image[0]).reshape(28, 28)
+
+        #    plt.subplot(imagesCount, 2, imageIndex * 2 + 2)
+        #    plt.imshow(imageArray, cmap='gray')
+
+        #plt.show()
+
+        # Restore changes in network.
+        self.activations.pop()
+        self.activations.append(originalLastActivation)
+        self.cost = originalCost
+        self.weights.pop()
+        self.weights.append(lastLayerWeights)
+        self.biases.pop()
+        self.biases.append(lastLayerBiases)
+
+        # Train only output layer afterwards.
+        self.trainability = [False] * (self.numberOfLayers - 2)
+        self.trainability.append(True)
+
+        print('End pretraining.\n')
+
 def loadMNIST(fileName):
     with open(fileName, "rb") as file:
         mainInfoBuffer = file.read(4)
-        #print(mainInfoBuffer)
         dimensionsAmount = mainInfoBuffer[3]
-        #print(dimensionsAmount)
         if dimensionsAmount > 0:
             dimensionsBufferSize = dimensionsAmount * 4
             sampleSize = 1
@@ -282,15 +395,11 @@ def loadMNIST(fileName):
             for i in range(dimensionsAmount):
                 dimensionBytes = file.read(4)
                 dimensions.append(int.from_bytes(dimensionBytes, byteorder = 'big'))
-            #dimensionsBuffer = file.read(dimensionsBufferSize)
-            #print(dimensionsBuffer)
-            #print(len(dimensionsBuffer))
-            #print(dimensions)
+
             samplesCount = dimensions[0]
             if dimensionsAmount > 1:
                 for i in range(1, dimensionsAmount):
                     sampleSize *= dimensions[i]
-            #print(sampleSize)
             samples = file.read(samplesCount * sampleSize)
             return (dimensions, samples)
         else:
@@ -300,16 +409,6 @@ def vectorized(i, n):
     vector = np.zeros(n, dtype = 'int')
     vector[i] = 1
     return vector
-
-#net = Network([2, 3, 1])
-#print(net.weights)
-#print(net.biases)
-#print(net.feedforward([1, 1]))
-
-#matrix1 = np.array([[1, 2], [3, 4]])
-#vector1 = np.array([2, 2])
-#matrix2 = np.array([[1, 1]])
-#print(np.dot(matrix1, vector1) + matrix2)
 
 # XOR example
 #net = Network([2, 2, 1], [ActivationSoftsign(), ActivationSigmoid()], CostCrossEntropy())
@@ -325,12 +424,6 @@ trainImages = loadMNIST("train-images.idx3-ubyte")
 trainLabels = loadMNIST("train-labels.idx1-ubyte")
 testImages = loadMNIST("t10k-images.idx3-ubyte")
 testLabels = loadMNIST("t10k-labels.idx1-ubyte")
-#print(trainImages[0])
-#shift = 784 * 2
-#for i in range(trainImages[0][1]):
-#    print(trainImages[1][shift + i * trainImages[0][2]:shift + (i + 1) * trainImages[0][2]])
-#
-#print(trainLabels[1][2])
 
 numberOfTrainSamples = trainImages[0][0]
 numberOfTestSamples = testImages[0][0]
@@ -339,35 +432,42 @@ resolution = trainImages[0][1] * trainImages[0][2]
 normalizedImages = [i/256.0 for i in trainImages[1]]
 splitedTrainImages = [normalizedImages[i*resolution:i*resolution + resolution] for i in range(trainImages[0][0])]
 splitedTrainImages = [np.reshape(x, (resolution, 1)) for x in splitedTrainImages]
-#for i in range(trainImages[0][1]):
-#    print(splitedTrainImages[2][i * trainImages[0][2]:(i + 1) * trainImages[0][2]])
-#
+
 trainLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(trainLabels[1][i], 10)]) for i in range(numberOfTrainSamples)]
-#print(trainLabelsVectorized[2])
 
 normalizedImages = [i/256.0 for i in testImages[1]]
 splitedTestImages = [normalizedImages[i*resolution:i*resolution + resolution] for i in range(testImages[0][0])]
 splitedTestImages = [np.reshape(x, (resolution, 1)) for x in splitedTestImages]
-#for i in range(testImages[0][1]):
-#    print(splitedTestImages[1][i * testImages[0][2]:(i + 1) * testImages[0][2]])
-#
+
 testLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(testLabels[1][i], 10)]) for i in range(numberOfTestSamples)]
-#print(testLabelsVectorized[1])
-#print(np.array(testLabelsVectorized[1]))
-#exit()
 
 trainData = list(zip(splitedTrainImages, trainLabelsVectorized))
 testData = list(zip(splitedTestImages, testLabelsVectorized))
 
-mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
+mnistNetwork = Network([resolution, 30, 10], [ActivationTanh(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
 maxEpochs = 30
 batchSize = 10
-eta = 0.5
+eta = 0.15
+
+#mnistNetwork.l1R = 0.00005
+
+#autoencoderTrainData = list(zip(splitedTrainImages, splitedTrainImages))
+#mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
+#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
+#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
+#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
+
+#mnistNetwork.trainability = [True] * (mnistNetwork.numberOfLayers - 1)
 
 mnistNetwork.l1R = 0.00005
 mnistNetwork.l2R = 0.00001
 mnistNetwork.nIEL = 1
-mnistNetwork.lRDL = 0.03125
+mnistNetwork.lRDL = 0.015625
 
+#mnistNetwork.l1RLayerDependent = True
+#mnistNetwork.gradientsAnalysis = True
 mnistNetwork.sgd(trainData, maxEpochs, batchSize, eta, testData, evalByMaxElement = True, evalByTrainingData = True)
 
