@@ -5,6 +5,7 @@ from typing import Protocol
 from abc import abstractmethod
 
 import matplotlib.pyplot as plt
+from scipy import ndimage
 
 #import warnings
 #warnings.filterwarnings("error")
@@ -177,7 +178,17 @@ class Network:
 
         plt.show()
 
-    def sgd(self, trainingData, maxEpochs, batchSize, eta, testData = None, evalByMaxElement = False, evalByTrainingData = False):
+    def sgd(self,
+            trainingData,
+            maxEpochs,
+            batchSize,
+            eta,
+            testData = None,
+            evalByMaxElement = False,
+            evalByTrainingData = False,
+            deformMNISTRandomlyBetweenEpochs = False,
+            learningRateChangeByEpoch = (0, 0)):
+
         if testData: numberOfTests = len(testData)
         numberOfTrainingData = len(trainingData)
 
@@ -190,7 +201,28 @@ class Network:
 
         for i in range(maxEpochs):
             random.shuffle(trainingData)
-            batches = [trainingData[j:j + batchSize] for j in range(0, numberOfTrainingData, batchSize)]
+            actualTrainingData = trainingData
+
+            if deformMNISTRandomlyBetweenEpochs:
+                actualTrainingData = []
+                for data in trainingData:
+                    angle = np.random.uniform(-15, 15)
+                    imageArray = data[0].reshape(28, 28)
+                    imageArray = ndimage.rotate(imageArray, angle = angle, reshape = False, order = 3)
+
+                    zoomX = np.random.uniform(0.85, 1.15)
+                    zoomY = np.random.uniform(0.85, 1.15)
+
+                    # Inverted multipliers.
+                    hor = 1 / zoomX
+                    ver = 1 / zoomY
+                    matrix = np.array([[ver, 0.0], [0.0, hor]])
+                    offsets = np.array([28, 28]) * np.array([zoomY - 1, zoomX - 1]) * 0.5
+                    imageArray = ndimage.affine_transform(imageArray, matrix = matrix, offset = offsets, output_shape = (28, 28))
+
+                    actualTrainingData.append((imageArray.reshape(784, 1), data[1]))
+
+            batches = [actualTrainingData[j:j + batchSize] for j in range(0, numberOfTrainingData, batchSize)]
 
             gradients = [np.zeros(w.shape) for w in self.weights]
 
@@ -204,15 +236,20 @@ class Network:
                 gradientsPerEpochs.append([gradientsSumsByLayer / len(batches) for gradientsSumsByLayer in gradients])
 
             if evalByTrainingData:
-                evaluationResult = self.evaluate(trainingData, evalByMaxElement)
+                evaluationResult = self.evaluate(actualTrainingData, evalByMaxElement)
                 if evalByMaxElement:
                     print(f"Epoch {i} training: {evaluationResult[0]} / {numberOfTrainingData} {evaluationResult[0] / numberOfTrainingData}")
                 print(f"Epoch {i} cost function by training data: {evaluationResult[1]:.10f}")
- 
+
+            if learningRateChangeByEpoch[0] > 0:
+                print(f'Current learning rate: {eta * lRCD}')
+                if learningRateChangeByEpoch[1] < lRCD:
+                    lRCD *= learningRateChangeByEpoch[0]
+
             if testData:
                 evaluationResult = self.evaluate(testData, evalByMaxElement)
                 if evalByMaxElement:
-                    if self.nIEL > 0:
+                    if self.nIEL > 0 and learningRateChangeByEpoch[0] == 0:
                         if evaluationResult[0] > lastBestEvaluation:
                             lastBestEvaluation = evaluationResult[0]
                             lastImprovementEpoch = i
@@ -427,6 +464,7 @@ testLabels = loadMNIST("t10k-labels.idx1-ubyte")
 
 numberOfTrainSamples = trainImages[0][0]
 numberOfTestSamples = testImages[0][0]
+
 # Prepare bare data for analisis.
 resolution = trainImages[0][1] * trainImages[0][2]
 normalizedImages = [i/256.0 for i in trainImages[1]]
@@ -444,10 +482,41 @@ testLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(testLab
 trainData = list(zip(splitedTrainImages, trainLabelsVectorized))
 testData = list(zip(splitedTestImages, testLabelsVectorized))
 
-mnistNetwork = Network([resolution, 30, 10], [ActivationTanh(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
+# Try image rotation.
+#imagesCount = 10
+#for imageIndex in range(imagesCount):
+#    image = trainData[imageIndex]
+#    imageArray = image[0].reshape(28, 28)
+#
+#    plt.subplot(imagesCount, 2, imageIndex * 2 + 1)
+#    plt.imshow(imageArray, cmap='gray')
+#
+#    angle = np.random.uniform(-15, 15)
+#    #print(angle)
+#    imageArray = ndimage.rotate(imageArray, angle = angle, reshape = False, order = 3)
+#
+#    zoomX = np.random.uniform(0.85, 1.15)
+#    zoomY = np.random.uniform(0.85, 1.15)
+#    #print(zoomX, zoomY)
+#    # Inverted multipliers.
+#    hor = 1 / zoomX
+#    ver = 1 / zoomY
+#    matrix = np.array([[ver, 0.0], [0.0, hor]])
+#    offsets = np.array([28, 28]) * np.array([zoomY - 1, zoomX - 1]) * 0.5
+#    imageArray = ndimage.affine_transform(imageArray, matrix = matrix, offset = offsets, output_shape = (28, 28))
+#
+#    plt.subplot(imagesCount, 2, imageIndex * 2 + 2)
+#    plt.imshow(imageArray, cmap='gray')
+#
+#plt.show()
+#exit()
+
+
+
+mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
 maxEpochs = 30
 batchSize = 10
-eta = 0.15
+eta = 1.00
 
 #mnistNetwork.l1R = 0.00005
 
@@ -469,5 +538,15 @@ mnistNetwork.lRDL = 0.015625
 
 #mnistNetwork.l1RLayerDependent = True
 #mnistNetwork.gradientsAnalysis = True
-mnistNetwork.sgd(trainData, maxEpochs, batchSize, eta, testData, evalByMaxElement = True, evalByTrainingData = True)
+mnistNetwork.sgd(
+        trainData,
+        maxEpochs,
+        batchSize,
+        eta,
+        testData,
+        evalByMaxElement = True,
+        evalByTrainingData = True,
+        deformMNISTRandomlyBetweenEpochs = True,
+        learningRateChangeByEpoch = (0.9, 0.01)
+)
 
