@@ -326,6 +326,9 @@ class Network:
                 z = zVectorsByLayer[-i]
                 aD = self.activations[-i].derivative(z)
                 delta = np.dot(self.weights[-i+1].transpose(), delta) * aD
+#                if np.isnan(aD).any() or np.isnan(delta).any() or np.isnan(self.weights[-i+1]).any():
+#                    print(f'delta {delta}\nweights {self.weights[-i+1]}\naD {aD}')
+#                    exit()
                 deltaW[-i] = np.dot(delta, activations[-i-1].transpose())
                 deltaB[-i] = delta
 
@@ -454,6 +457,36 @@ def vectorized(i, n):
 #outputsXOR = [np.reshape(x, (1, 1)) for x in [0, 1, 1, 0]]
 #trainDataXOR = list(zip(inputs, outputsXOR))
 #net.sgd(trainDataXOR, 400, 2, 3.0, trainDataXOR)
+#exit()
+
+# Regression example
+#net = Network([1, 40, 40, 1], [ActivationReLU(), ActivationReLU(), ActivationLinear()], CostSquare())
+#def operation(x):
+#    return 3 * x**3 - x**2 + 7 * x + 5
+#
+#inputsRaw = np.arange(-25, 25, 0.2)
+#maxInputRaw = np.max(np.abs(inputsRaw))
+#inputs = [np.reshape(x / maxInputRaw, (1, 1)) for x in inputsRaw]
+#outputsRaw = [operation(x) for x in inputsRaw]
+#maxOutputRaw = np.max(np.abs(outputsRaw))
+#outputs = [np.reshape(x / maxOutputRaw, (1, 1)) for x in outputsRaw]
+##plt.scatter(inputsRaw, outputsRaw)
+##plt.show()
+#
+#trainData = list(zip(inputs, outputs))
+#inputsTestRaw = np.arange(-30, 30, 0.5)
+#inputsTest = [np.reshape(x / maxInputRaw, (1, 1)) for x in inputsTestRaw]
+#outputsTestRaw = [operation(x) for x in inputsTestRaw]
+#outputsTest = [np.reshape(x / maxOutputRaw, (1, 1)) for x in outputsTestRaw]
+#testData = list(zip(inputsTest, outputsTest))
+#
+#net.sgd(trainData, 1000, 10, 0.01, testData, evalByTrainingData = True)
+#
+#outputsNet = [net.feedforward(x).item() * maxOutputRaw for x in inputsTest]
+#plt.scatter(inputsTestRaw, outputsTestRaw)
+#plt.scatter(inputsTestRaw, outputsNet)
+#plt.show()
+#
 #exit()
 
 # MNIST example
