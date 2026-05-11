@@ -139,6 +139,7 @@ class Network:
         self.l2R = 0.0
         self.nIEL = 0
         self.lRDL = 0.0
+        self.momentum = 0.0
 
         self.gradientsAnalysis = False
         self.l1RLayerDependent = False
@@ -199,6 +200,9 @@ class Network:
         gradientsPerEpochs = []
         weightsPerEpochs = []
 
+        weightsVelocities = [np.zeros(w.shape) for w in self.weights]
+        biasesVelocities = [np.zeros(b.shape) for b in self.biases]
+
         for i in range(maxEpochs):
             random.shuffle(trainingData)
             actualTrainingData = trainingData
@@ -230,7 +234,7 @@ class Network:
                 weightsPerEpochs.append(self.weights.copy())
 
             for batch in batches:
-                self.updateBatch(batch, eta * lRCD, gradients)
+                self.updateBatch(batch, eta * lRCD, gradients, weightsVelocities, biasesVelocities)
 
             if self.gradientsAnalysis:
                 gradientsPerEpochs.append([gradientsSumsByLayer / len(batches) for gradientsSumsByLayer in gradients])
@@ -273,7 +277,7 @@ class Network:
         if self.gradientsAnalysis:
             self.showGradientsStatistics(gradientsPerEpochs, weightsPerEpochs)
 
-    def updateBatch(self, batch, eta, gradients):
+    def updateBatch(self, batch, eta, gradients, weightsVelocities, biasesVelocities):
         sumOfDeltasForWeights = [np.zeros(w.shape) for w in self.weights]
         sumOfDeltasForBiases = [np.zeros(b.shape) for b in self.biases]
         batchSize = len(batch)
@@ -298,10 +302,25 @@ class Network:
                             l1R *= 0.2
                         else:
                             l1R *= 0.5# * (0.4 + 0.6 * index / (lastIndex - 1))# Will be there only if lastIndex > 1.
+
+                gradientPure = dW / batchSize
                 if self.gradientsAnalysis:
-                    gradients[index] = gradients[index] + dW / batchSize
-                self.weights[index] = w - eta * (dW / batchSize + self.l2R * w + l1R * np.sign(w))
-                self.biases[index] = b - eta * dB / batchSize
+                    gradients[index] = gradients[index] + gradientPure
+
+                weightGradient = gradientPure + self.l2R * w + l1R * np.sign(w)
+                weightVelocity = weightGradient
+
+                biasGradient = dB / batchSize
+                biasVelocity = biasGradient
+
+                if self.momentum > 0:
+                    weightVelocity = self.momentum * weightsVelocities[index] + (1 - self.momentum) * weightVelocity
+                    biasVelocity = self.momentum * biasesVelocities[index] + (1 - self.momentum) * biasVelocity
+                    weightsVelocities[index] = weightVelocity
+                    biasesVelocities[index] = biasVelocity
+
+                self.weights[index] = w - eta * weightVelocity
+                self.biases[index] = b - eta * biasVelocity
 
     def backpropagation(self, input, result):
         deltaW = [np.zeros(w.shape) for w in self.weights]
@@ -569,6 +588,7 @@ mnistNetwork.l2R = 0.00001
 mnistNetwork.nIEL = 1
 mnistNetwork.lRDL = 0.015625
 
+mnistNetwork.momentum = 0.9
 #mnistNetwork.l1RLayerDependent = True
 #mnistNetwork.gradientsAnalysis = True
 mnistNetwork.sgd(
@@ -579,7 +599,7 @@ mnistNetwork.sgd(
         testData,
         evalByMaxElement = True,
         evalByTrainingData = True,
-        deformMNISTRandomlyBetweenEpochs = True,
+#        deformMNISTRandomlyBetweenEpochs = True,
         learningRateChangeByEpoch = (0.9, 0.01)
 )
 

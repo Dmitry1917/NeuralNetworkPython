@@ -3,11 +3,13 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.cluster import DBSCAN
 from sklearn.cluster import HDBSCAN
+from sklearn.cluster import OPTICS
 from sklearn.cluster import SpectralClustering
 from sklearn.mixture import GaussianMixture
+from sklearn.cluster import AgglomerativeClustering
 
-numberOfMethods = 5
-numberOfExamples = 6
+numberOfMethods = 8
+numberOfExamples = 7
 plt.figure(figsize = (5 * numberOfExamples, 5 * numberOfMethods), num = 1, clear = True)
 
 def plot(data, numberOfColumns, column, info, equalAxis = False):
@@ -15,8 +17,7 @@ def plot(data, numberOfColumns, column, info, equalAxis = False):
     plt.subplot(numberOfMethods, numberOfColumns, column + 1)
     kmeans = KMeans(n_clusters = 3)
     kmeans.fit(data)
-    #print(kmeans.labels_)
-    
+
     if equalAxis:
         plt.axis('equal')
     plt.title(f'KMeans 3 {info}')
@@ -35,14 +36,25 @@ def plot(data, numberOfColumns, column, info, equalAxis = False):
     plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 2 + column + 1)
     hdbscan = HDBSCAN()
     hdbscan.fit(data)
- 
+
     if equalAxis:
         plt.axis('equal')   
     hdbScanNumberOfClusters = len(set(hdbscan.labels_))
     plt.title(f'HDBSCAN {hdbScanNumberOfClusters} {info}')
     plt.scatter(x, y, c = hdbscan.labels_)
-
+    
     plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 3 + column + 1)
+    optics = OPTICS()
+    optics.fit(data)
+
+    if equalAxis:
+        plt.axis('equal')   
+    opticsNumberOfClusters = len(set(optics.labels_))
+    plt.title(f'OPTICS {opticsNumberOfClusters} {info}')
+    plt.scatter(x, y, c = optics.labels_)
+
+
+    plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 4 + column + 1)
     spectral = SpectralClustering(n_clusters = 3)
     spectral.fit(data)
  
@@ -51,7 +63,7 @@ def plot(data, numberOfColumns, column, info, equalAxis = False):
     plt.title(f'Spectral 3 {info}')
     plt.scatter(x, y, c = spectral.labels_)
 
-    plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 4 + column + 1)
+    plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 5 + column + 1)
     gm = GaussianMixture(n_components = 3)
     labels = gm.fit_predict(data)
  
@@ -60,6 +72,26 @@ def plot(data, numberOfColumns, column, info, equalAxis = False):
     gmNumberOfClusters = len(set(labels))
     plt.title(f'GM {gmNumberOfClusters} {info}')
     plt.scatter(x, y, c = labels)
+
+    plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 6 + column + 1)
+    gm = AgglomerativeClustering(n_clusters = 3, linkage = 'ward')
+    labels = gm.fit_predict(data)
+ 
+    if equalAxis:
+        plt.axis('equal')   
+    plt.title(f'AC Ward 3 {info}')
+    plt.scatter(x, y, c = labels)
+
+    plt.subplot(numberOfMethods, numberOfColumns, numberOfColumns * 7 + column + 1)
+    gm = AgglomerativeClustering(n_clusters = 3, linkage = 'single')
+    labels = gm.fit_predict(data)
+ 
+    if equalAxis:
+        plt.axis('equal')   
+    plt.title(f'AC Single 3 {info}')
+    plt.scatter(x, y, c = labels)
+
+
 
 
 size = 100
@@ -98,6 +130,23 @@ data = list(zip(x, y))
 plot(data, numberOfExamples, 1, 'uniform')
 
 
+dataX1 = np.random.normal(loc = 5.0, scale = 2, size = size)
+dataY1 = np.random.normal(loc = 3.0, scale = 1, size = size)
+
+dataX2 = np.random.uniform(14, 18, size = size)
+dataY2 = np.random.uniform(2, 4, size = size)
+
+dataX3 = np.random.normal(loc = 12.0, scale = 2, size = size)
+dataY3 = np.random.normal(loc = 7.0, scale = 1, size = size)
+
+x = np.concatenate((dataX1, dataX2, dataX3))
+y = np.concatenate((dataY1, dataY2, dataY3))
+
+data = list(zip(x, y))
+
+plot(data, numberOfExamples, 2, 'normal and uniform')
+
+
 steps = np.linspace(0, 2 * np.pi, size)
 dataX1 = np.array([5 + 3 * np.cos(angle) for angle in steps])
 dataY1 = np.array([3 + 3 * np.sin(angle) for angle in steps])
@@ -113,7 +162,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 2, 'circles', equalAxis = True)
+plot(data, numberOfExamples, 3, 'circles', equalAxis = True)
 
 
 dataX1 = np.array([5 + 6 * np.cos(angle) for angle in steps])
@@ -130,7 +179,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 3, 'ellipses', equalAxis = True)
+plot(data, numberOfExamples, 4, 'ellipses', equalAxis = True)
 
 
 steps = np.linspace(-np.pi / 2, np.pi / 2, size)
@@ -149,7 +198,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 4, 'arcs', equalAxis = True)
+plot(data, numberOfExamples, 5, 'arcs', equalAxis = True)
 
 
 x = np.random.uniform(3, 7, size = 3 * size)
@@ -157,7 +206,7 @@ y = np.random.uniform(2, 4, size = 3 * size)
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 5, 'uniform no clusters')
+plot(data, numberOfExamples, 6, 'uniform no clusters')
 
 #Elbow method. Look there inertias start to decrease too slow - this is real (or close to) cluster number.
 #inertias = []
