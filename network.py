@@ -18,6 +18,7 @@ from scipy import ndimage
 ## Layer replaceability and individual training.
 ## Autoencoder.
 ## Analize gradients during training (per layer).
+## Momentum.
 
 class Cost(Protocol):
     @abstractmethod
