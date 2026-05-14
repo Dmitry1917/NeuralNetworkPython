@@ -12,7 +12,7 @@ numberOfMethods = 8
 numberOfExamples = 7
 plt.figure(figsize = (5 * numberOfExamples, 5 * numberOfMethods), num = 1, clear = True)
 
-def plot(data, numberOfColumns, column, info, equalAxis = False):
+def plot(x, y, data, numberOfColumns, column, info, equalAxis = False):
 
     plt.subplot(numberOfMethods, numberOfColumns, column + 1)
     kmeans = KMeans(n_clusters = 3)
@@ -110,7 +110,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 0, 'normal')
+plot(x, y, data, numberOfExamples, 0, 'normal')
 
 
 dataX1 = np.random.uniform(3, 7, size = size)
@@ -127,7 +127,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 1, 'uniform')
+plot(x, y, data, numberOfExamples, 1, 'uniform')
 
 
 dataX1 = np.random.normal(loc = 5.0, scale = 2, size = size)
@@ -144,7 +144,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 2, 'normal and uniform')
+plot(x, y, data, numberOfExamples, 2, 'normal and uniform')
 
 
 steps = np.linspace(0, 2 * np.pi, size)
@@ -162,7 +162,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 3, 'circles', equalAxis = True)
+plot(x, y, data, numberOfExamples, 3, 'circles', equalAxis = True)
 
 
 dataX1 = np.array([5 + 6 * np.cos(angle) for angle in steps])
@@ -179,7 +179,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 4, 'ellipses', equalAxis = True)
+plot(x, y, data, numberOfExamples, 4, 'ellipses', equalAxis = True)
 
 
 steps = np.linspace(-np.pi / 2, np.pi / 2, size)
@@ -198,7 +198,7 @@ y = np.concatenate((dataY1, dataY2, dataY3))
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 5, 'arcs', equalAxis = True)
+plot(x, y, data, numberOfExamples, 5, 'arcs', equalAxis = True)
 
 
 x = np.random.uniform(3, 7, size = 3 * size)
@@ -206,7 +206,7 @@ y = np.random.uniform(2, 4, size = 3 * size)
 
 data = list(zip(x, y))
 
-plot(data, numberOfExamples, 6, 'uniform no clusters')
+plot(x, y, data, numberOfExamples, 6, 'uniform no clusters')
 
 #Elbow method. Look there inertias start to decrease too slow - this is real (or close to) cluster number.
 #inertias = []
