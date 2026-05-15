@@ -79,7 +79,7 @@ class SOM:
         plt.scatter(x, y)
         plt.show()
 
-    def draw(self, samples = []):
+    def draw(self, samples = [], labels = []):
         rows = self.neuronsDimensions[0]
         if len(self.neuronsDimensions) == 1:
             columns = 1
@@ -102,22 +102,43 @@ class SOM:
                 bottomRightY = topLeftY + neuronAreaHeight - margin
                 draw.rectangle((topLeftX, topLeftY, bottomRightX, bottomRightY), fill = '#555555')
 
-        for sample in samples:
+        labelsInNeurons = [{} for _ in range(len(self.neurons))]
+
+        for index, sample in enumerate(samples):
             bmuIndex = self.findBMU(sample)
             bmuY = bmuIndex // columns
             bmuX = bmuIndex % columns
 
-            topLeftX = bmuX * neuronAreaWidth + margin / 2 + np.random.uniform(15)
-            topLeftY = bmuY * neuronAreaHeight + margin / 2 + np.random.uniform(15)
-            bottomRightX = topLeftX + 2
-            bottomRightY = topLeftY + 2
-            draw.rectangle((topLeftX, topLeftY, bottomRightX, bottomRightY), fill = '#999999')
+            if (len(labels) == len(samples)) and len(labels) > 0:
+                label = labels[index]
+                if label in labelsInNeurons[bmuIndex]:
+                    labelsInNeurons[bmuIndex][label] += 1
+                else:
+                    labelsInNeurons[bmuIndex][label] = 1
+
+#            topLeftX = bmuX * neuronAreaWidth + margin / 2 + np.random.uniform(25)
+#            topLeftY = bmuY * neuronAreaHeight + margin / 2 + np.random.uniform(25)
+#            bottomRightX = topLeftX + 2
+#            bottomRightY = topLeftY + 2
+#            draw.rectangle((topLeftX, topLeftY, bottomRightX, bottomRightY), fill = '#999999')
+
+#        print(labels)
+#        print(labelsInNeurons)
+
+        if (len(labels) == len(samples)) and len(labels) > 0:
+            for index, labelsInNeuron in enumerate(labelsInNeurons):
+                y = index // columns
+                x = index % columns
+                for index, (label, amount) in enumerate(labelsInNeuron.items()):
+                    topLeftX = x * neuronAreaWidth + margin / 2 + index * 10
+                    topLeftY = y * neuronAreaHeight + margin / 2 + index * 10
+                    draw.text((topLeftX, topLeftY), f'{label} {amount}')
 
         img.show()
 
 som = SOM((7, 5), 2)
-print('original neurons')
-som.print()
+#print('original neurons')
+#som.print()
 
 size = 10
 dataX1 = np.random.uniform(0.0, 0.1, size = size)
@@ -143,11 +164,12 @@ samples = np.stack((x, y), axis = 1)
 print('samples')
 print(samples)
 
-som.plotPure2D()
+#som.plotPure2D()
 
 som.train(samples, 100)
 
-print('final neurons')
-som.print()
-som.plotPure2D()
-som.draw(samples)
+#print('final neurons')
+#som.print()
+#som.plotPure2D()
+labels = [f'{i}' for i in range(1, 6) for k in range(size)]
+som.draw(samples, labels)
