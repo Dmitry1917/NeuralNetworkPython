@@ -7,6 +7,9 @@ from abc import abstractmethod
 import matplotlib.pyplot as plt
 from scipy import ndimage
 
+from mnist import loadMNIST
+from mnist import vectorized
+
 #import warnings
 #warnings.filterwarnings("error")
 
@@ -444,32 +447,6 @@ class Network:
 
         print('End pretraining.\n')
 
-def loadMNIST(fileName):
-    with open(fileName, "rb") as file:
-        mainInfoBuffer = file.read(4)
-        dimensionsAmount = mainInfoBuffer[3]
-        if dimensionsAmount > 0:
-            dimensionsBufferSize = dimensionsAmount * 4
-            sampleSize = 1
-            dimensions = []
-            for i in range(dimensionsAmount):
-                dimensionBytes = file.read(4)
-                dimensions.append(int.from_bytes(dimensionBytes, byteorder = 'big'))
-
-            samplesCount = dimensions[0]
-            if dimensionsAmount > 1:
-                for i in range(1, dimensionsAmount):
-                    sampleSize *= dimensions[i]
-            samples = file.read(samplesCount * sampleSize)
-            return (dimensions, samples)
-        else:
-            print(f"Wrong MNIST file format {filename}")
-
-def vectorized(i, n):
-    vector = np.zeros(n, dtype = 'int')
-    vector[i] = 1
-    return vector
-
 # XOR example
 #net = Network([2, 2, 1], [ActivationSoftsign(), ActivationSigmoid()], CostCrossEntropy())
 #inputsRaw = [[0, 0], [0, 1], [1, 0], [1, 1]]
@@ -520,15 +497,13 @@ numberOfTestSamples = testImages[0][0]
 
 # Prepare bare data for analisis.
 resolution = trainImages[0][1] * trainImages[0][2]
-normalizedImages = [i/256.0 for i in trainImages[1]]
-splitedTrainImages = [normalizedImages[i*resolution:i*resolution + resolution] for i in range(trainImages[0][0])]
-splitedTrainImages = [np.reshape(x, (resolution, 1)) for x in splitedTrainImages]
+normalizedImages = np.frombuffer(trainImages[1], dtype = np.uint8) / 255.0
+splitedTrainImages = np.reshape(normalizedImages, (numberOfTrainSamples, resolution, 1))
 
 trainLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(trainLabels[1][i], 10)]) for i in range(numberOfTrainSamples)]
 
-normalizedImages = [i/256.0 for i in testImages[1]]
-splitedTestImages = [normalizedImages[i*resolution:i*resolution + resolution] for i in range(testImages[0][0])]
-splitedTestImages = [np.reshape(x, (resolution, 1)) for x in splitedTestImages]
+normalizedImages = np.frombuffer(testImages[1], dtype = np.uint8) / 255.0
+splitedTestImages = np.reshape(normalizedImages, (numberOfTestSamples, resolution, 1))
 
 testLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(testLabels[1][i], 10)]) for i in range(numberOfTestSamples)]
 
