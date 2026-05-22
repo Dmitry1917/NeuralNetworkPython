@@ -1,6 +1,6 @@
-## Neural networks and ML.
+# Neural networks and ML.
 
-# network.py
+## network.py
 This is continuation of https://github.com/Dmitry1917/NeuralNetwork, but here I have implemented most of previous functionality in Python and also tried methods, that was hard to do in the old version. Still almost all is MNIST work.
 The differences:
 - pure python (obviously);
@@ -10,7 +10,7 @@ The differences:
 - more flexible learning rate shedules;
 - can deform images a bit randomly to inflate training examples, and thus improve result.
 
-# clustering.py
+## clustering.py
 Just tried different clustering methods from sklearn.cluster:
 - KMeans;
 - DBSCAN;
@@ -26,6 +26,6 @@ Turns out that phrase from there: "the parameters of each of these dataset-algor
 - Spectral, GM and Ward do everything KMeans do, but better (Ward is usually the worst of them);
 - OPTICS dont excessively divide arcs because of changing density like DBSCAN or HDBSCAN do (can be seen on ellipse example), but overdivide everything else.
 
-# som.py
+## som.py
 Simple implementation of self-organized maps (1D or 2D) and several tests, based on the same samples, that was used in clustering.py plus MNIST database. The results are visualized by showing how many of the labeled samples belong to what neuron, and, in case of 2D data - also there neurons are in space.
 
