@@ -510,41 +510,12 @@ testLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(testLab
 trainData = list(zip(splitedTrainImages, trainLabelsVectorized))
 testData = list(zip(splitedTestImages, testLabelsVectorized))
 
-# Try image rotation.
-#imagesCount = 10
-#for imageIndex in range(imagesCount):
-#    image = trainData[imageIndex]
-#    imageArray = image[0].reshape(28, 28)
-#
-#    plt.subplot(imagesCount, 2, imageIndex * 2 + 1)
-#    plt.imshow(imageArray, cmap='gray')
-#
-#    angle = np.random.uniform(-15, 15)
-#    #print(angle)
-#    imageArray = ndimage.rotate(imageArray, angle = angle, reshape = False, order = 3)
-#
-#    zoomX = np.random.uniform(0.85, 1.15)
-#    zoomY = np.random.uniform(0.85, 1.15)
-#    #print(zoomX, zoomY)
-#    # Inverted multipliers.
-#    hor = 1 / zoomX
-#    ver = 1 / zoomY
-#    matrix = np.array([[ver, 0.0], [0.0, hor]])
-#    offsets = np.array([28, 28]) * np.array([zoomY - 1, zoomX - 1]) * 0.5
-#    imageArray = ndimage.affine_transform(imageArray, matrix = matrix, offset = offsets, output_shape = (28, 28))
-#
-#    plt.subplot(imagesCount, 2, imageIndex * 2 + 2)
-#    plt.imshow(imageArray, cmap='gray')
-#
-#plt.show()
-#exit()
-
-
-
 mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
 maxEpochs = 30
 batchSize = 10
 eta = 1.00
+
+# Autoencoder pretraining.
 
 #mnistNetwork.l1R = 0.00005
 

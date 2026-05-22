@@ -14,16 +14,11 @@ class SOM:
         self.neurons = weightsInit(neuronsDimensions, weightsNumbers)
 
     def findBMU(self, sample) -> int:
-        minDistance = 10
-        minIndex = 0
-        for index, neuron in enumerate(self.neurons):
-            distance = np.linalg.norm(neuron - sample)
-            if distance < minDistance:
-                minDistance = distance
-                minIndex = index
+        squareDistancesNeuronToSample = ((self.neurons - sample) ** 2).sum(axis = 1)
+        minIndex = np.argmin(squareDistancesNeuronToSample)
         return minIndex
 
-    def neighbourhood(self, bmuIndex, index):
+    def neighbourhood(self, bmuIndex, index, maxRadius):
         if index == bmuIndex:
             return 1.0
         else:
@@ -36,21 +31,31 @@ class SOM:
                 bmuX = bmuIndex % self.neuronsDimensions[1]
                 y = index // self.neuronsDimensions[1]
                 x = index % self.neuronsDimensions[1]
-                diff = abs(bmuX - x) + abs(bmuY - y)
-            return 1.0 / (3 ** diff)
+                diff = math.sqrt((bmuX - x) ** 2 + (bmuY - y) ** 2)
+            if diff < maxRadius or diff < 2:
+                return 1.0 / (2 ** diff)
+            else:
+                return 0
 
     @staticmethod
     def learningRate(epoch, epochs):
         return 1 - epoch / epochs;
 
+    @staticmethod
+    def radiusRate(epoch, epochs):
+        return 1 - epoch / epochs;
+
     def train(self, samples, epochs):
         localSamples = samples.copy()
+        maxRadius = math.sqrt(np.dot(self.neuronsDimensions, self.neuronsDimensions))
         for epoch in range(epochs):
             np.random.shuffle(localSamples)
+            lR = self.learningRate(epoch, epochs)
+            radius = maxRadius * self.radiusRate(epoch, epochs)
             for sample in localSamples:
                 bmuIndex = self.findBMU(sample)
                 for index, neuron in enumerate(self.neurons):
-                    neuron = neuron + self.neighbourhood(bmuIndex, index) * self.learningRate(epoch, epochs) * (sample - neuron)
+                    neuron = neuron + self.neighbourhood(bmuIndex, index, radius) * lR * (sample - neuron)
                     self.neurons[index] = neuron
 
     def print(self):
@@ -144,7 +149,7 @@ class SOM:
                     draw.text((topLeftX, topLeftY), f'{label} {amount}', fill = '#0000ff')
 
         if generate2DSpaceRepresentation:
-    #Value space presentation.
+#Value space presentation.
             topLeftXCommon = width + 50
             for index, (neuron, labelsInNeuron) in enumerate(zip(self.neurons, labelsInNeurons)):
                 x = 0
@@ -172,9 +177,6 @@ class SOM:
                         draw.text((topLeftX, topLeftY), f'{label} {amount}', fill = '#0000ff')
 
         img.show()
-
-#print('original neurons')
-#som.print()
 
 def uniformGroups():
     som = SOM((7, 5), 2)
@@ -326,9 +328,9 @@ def mnistExample():
 
     som.draw(images, labels)
 
-#uniformGroups()
+uniformGroups()
 #normalGroups()
 #circleGroups()
 #ellipsesGroups()
 #noGroups()
-mnistExample()
+#mnistExample()
