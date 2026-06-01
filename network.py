@@ -1,7 +1,9 @@
 import numpy as np
 import random
+import json
 
 from typing import Protocol
+from typing import Self
 from abc import abstractmethod
 
 import matplotlib.pyplot as plt
@@ -22,6 +24,7 @@ from mnist import vectorized
 ## Autoencoder.
 ## Analize gradients during training (per layer).
 ## Momentum.
+## Save/Load.
 
 class Cost(Protocol):
     @abstractmethod
@@ -128,6 +131,48 @@ def weightsInit(neurons, weightsPerNeuron):
 
 def biasesInit(neurons):
     return np.random.normal(size = (neurons, 1))
+
+class NetworkEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, type):
+            return obj.__name__
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, (np.int32, np.int64, np.intc)):
+            return int(obj)
+        elif isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
+        else:
+            return super().default(obj)
+
+class NetworkDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook = self.object_hook, *args, **kwargs)
+
+    def object_hook(self, dct):
+        if not 'cost' in dct:
+            return dct
+
+        sizes = dct['sizes']
+        activationsStrings = dct['activations']
+        activations = []
+        for activ in activationsStrings:
+            activations.append(globals().get(activ))
+        cost = globals().get(dct['cost'])
+
+        net = Network(sizes, activations, cost)
+        net.weights = [np.array(arr) for arr in dct['weights']]
+        net.biases = [np.array(arr) for arr in dct['biases']]
+        net.trainability = dct['trainability']
+        net.l1R = dct['l1R']
+        net.l2R = dct['l2R']
+        net.nIEL = dct['nIEL']
+        net.lRDL = dct['lRDL']
+        net.momentum = dct['momentum']
+        net.gradientsAnalysis = dct['gradientsAnalysis']
+        net.l1RLayerDependent = dct['l1RLayerDependent']
+
+        return net
 
 class Network:
     def __init__(self, sizes, activations, cost):
@@ -412,7 +457,7 @@ class Network:
         originalCost = self.cost
         self.cost = CostSquare()
         originalLastActivation = self.activations.pop()
-        self.activations.append(ActivationLinear())
+        self.activations.append(ActivationLinear)
 
         print('Start pretraining.\n')
         self.sgd(trainingData, maxEpochs, batchSize, eta, evalByTrainingData = True)
@@ -447,8 +492,19 @@ class Network:
 
         print('End pretraining.\n')
 
+    def save(self, fileName):
+        with open(fileName, 'w') as file:
+            json.dump(self.__dict__, file, cls = NetworkEncoder, indent = 4)
+
+    @staticmethod
+    def load(fileName) -> Self:
+        with open(fileName, 'r') as file:
+            net = json.load(file, cls = NetworkDecoder)
+        return net
+
+
 # XOR example
-#net = Network([2, 2, 1], [ActivationSoftsign(), ActivationSigmoid()], CostCrossEntropy())
+#net = Network([2, 2, 1], [ActivationSoftsign, ActivationSigmoid], CostCrossEntropy)
 #inputsRaw = [[0, 0], [0, 1], [1, 0], [1, 1]]
 #inputs = [np.reshape(x, (2, 1)) for x in inputsRaw]
 #outputsXOR = [np.reshape(x, (1, 1)) for x in [0, 1, 1, 0]]
@@ -457,7 +513,7 @@ class Network:
 #exit()
 
 # Regression example
-#net = Network([1, 40, 40, 1], [ActivationReLU(), ActivationReLU(), ActivationLinear()], CostSquare())
+#net = Network([1, 40, 40, 1], [ActivationReLU, ActivationReLU, ActivationLinear], CostSquare)
 #def operation(x):
 #    return 3 * x**3 - x**2 + 7 * x + 5
 #
@@ -510,7 +566,7 @@ testLabelsVectorized = [np.array([np.reshape(x, (1)) for x in vectorized(testLab
 trainData = list(zip(splitedTrainImages, trainLabelsVectorized))
 testData = list(zip(splitedTestImages, testLabelsVectorized))
 
-mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid(), ActivationSoftmax()], CostLogLikehood())#CostSquare())
+mnistNetwork = Network([resolution, 30, 10], [ActivationSigmoid, ActivationSoftmax], CostLogLikehood)#CostSquare())
 maxEpochs = 30
 batchSize = 10
 eta = 1.00
@@ -521,11 +577,11 @@ eta = 1.00
 
 #autoencoderTrainData = list(zip(splitedTrainImages, splitedTrainImages))
 #mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
-#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.addHiddenLayer(30, ActivationTanh)
 #mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
-#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.addHiddenLayer(30, ActivationTanh)
 #mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
-#mnistNetwork.addHiddenLayer(30, ActivationTanh())
+#mnistNetwork.addHiddenLayer(30, ActivationTanh)
 #mnistNetwork.autoencoderPretrain(autoencoderTrainData, maxEpochs = 10, batchSize = batchSize, eta = 0.005)
 
 #mnistNetwork.trainability = [True] * (mnistNetwork.numberOfLayers - 1)
@@ -550,3 +606,8 @@ mnistNetwork.sgd(
         learningRateChangeByEpoch = (0.9, 0.01)
 )
 
+#mnistNetwork.save('net.txt')
+#
+#loadedNet = Network.load('net.txt')
+#print(loadedNet.evaluate(testData, True))
+#loadedNet.save('net_restored.txt')
