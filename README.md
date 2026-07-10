@@ -10,6 +10,9 @@ The differences:
 - more flexible learning rate shedules;
 - can deform images a bit randomly to inflate training examples, and thus improve result.
 
+## try_pytorch.py
+Implementation of MNIST work from network.py, but in PyTorch, including manually added L1-regularization.
+
 ## clustering.py
 Just tried different clustering methods from sklearn.cluster:
 - KMeans;
