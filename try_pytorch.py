@@ -8,7 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from mnist import loadMNIST
-from mnist import vectorized
 
 trainImages = loadMNIST("train-images.idx3-ubyte")
 trainLabels = loadMNIST("train-labels.idx1-ubyte")

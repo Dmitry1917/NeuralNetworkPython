@@ -13,6 +13,9 @@ The differences:
 ## try_pytorch.py
 Implementation of MNIST work from network.py, but in PyTorch, including manually added L1-regularization.
 
+## try_tensorflow.py
+The same implementation in Tensorflow.
+
 ## clustering.py
 Just tried different clustering methods from sklearn.cluster:
 - KMeans;
